@@ -369,3 +369,93 @@ class chao:
   def __len__(self): 
     if self.n!=-1: return self.n-self.i-1
     else: -1
+
+
+
+    
+def read_vector(f,ft,tr=False):
+  n = unpack('I',f.read(4))[0]
+  m = len(ft)
+  l = list(unpack(n*ft,f.read(n*calcsize(ft))))
+  if m==1: return l
+  else: 
+    if not tr: return [[l[m*i+j] for j in range(m)] for i in range(n)]
+    else: return [[l[m*i+j] for i in range(n)] for j in range(m)]
+  
+load_runs_length()
+
+class chao2:
+  def __init__(self,path='',run=0,folder=replayf+'/event_sel'):
+    if path=='' and run==0: 
+      print 'no path or run given'
+      return
+    elif path=='': path = folder+'/prad_'+str(run).zfill(6)+'_sel.dst'
+    self.f = open(path,'rb')
+    self.epics = event()
+    self.e = event()
+    self.i = 0
+    self.n = -1
+    if 'sel' in path and run in runs_length_sel: self.n = runs_length_sel[run]
+    elif 'raw' in path and run in runs_length_raw: self.n = runs_length_raw[run]
+    self.eheader = []
+    self.read_header()
+    self.load_epics()
+
+  def read_header(self):
+    self.f.seek(0,0)
+    self.header = list(unpack('HHIQ',self.f.read(16)))
+
+  def load_epics(self):
+    self.epics_names = readfile(os.environ['PRAD_PATH']+'/config/epics_channels.conf')
+
+  def __iter__(self): return self
+
+  def close(self): self.f.close()
+
+  def next(self):
+    if self.end(): 
+      raise StopIteration
+    else:
+      self.read()
+      return self.e
+
+  def goto(self,n):
+    while not self.end() and self.i<n-1: 
+      self.read(0)
+    while not self.end() and self.i<n: 
+      self.read()
+
+  def end(self):
+    return self.f.tell()>=self.header[3]
+
+  def read(self,flag=1):
+    self.eheader = list(unpack('HHI',self.f.read(8)))
+    if flag==0: 
+      self.f.seek(self.eheader[2],1)
+      if self.eheader[1]==0:
+        self.i+=1
+    else:
+      if self.eheader[1]==0:
+        self.i+=1
+        self.read_event()
+      elif self.eheader[1]==1:
+        self.read_epics()
+
+  def read_epics(self):
+    self.epics.iev = unpack('i',self.f.read(4))[0]
+    l = read_vector(self.f,'f')
+    for x,y in zip(self.epics_names,l): self.epics[x] = y
+
+  def read_event(self):
+    l = list(unpack('=iBBQ',self.f.read(14)))
+    for x,y in zip(['iev','typ','trigger','time'],l): self.e[x] = y
+    [self.e.adc_id,self.e.adc_val] = read_vector(self.f,'HH',1)
+    [self.e.tdc_id,self.e.tdc_val] = read_vector(self.f,'HH',1)
+    ngem = unpack('I',self.f.read(4))[0]
+    self.e.gem_id,self.e.gem_val = [],[]
+    for i in range(ngem):
+      self.e.gem_id.append(list(unpack('BBB',self.f.read(3))))
+      self.e.gem_val.append(read_vector(self.f,'f'))
+    self.e.dsc = read_vector(self.f,'II')
+    
+  def __len__(self): return self.n

@@ -2,12 +2,12 @@
 
 import os,sys,re
 from misc import *
+from arg_parser import *
 from subprocess import *
 
 largs = [('n',0,'several','delete_between_id1_id2'),
          ('s','','','delete_match')]
-print_help(largs)
-[n,s] = catch_args(largs)
+[n,s] = ArgParser(largs).argl
 
 if n==[0] and s=='':
   os.system('jkill 0')

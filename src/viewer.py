@@ -124,10 +124,9 @@ class hcviewer:
     self.h[ih][ibin] = 0.
     self.h[ih].SetEntries(self.h[ih].GetEntries()-1)
 
-  def binning(self,index):
-    if type(index)==int: index=module_names[index]
-    mid = int(index[1:])-1
-    if index[0]=='W': return (0,mid%34,33-mid/34,mid%34+1+(34-mid/34)*36)
+  def binning(self,mid):
+    if isinstance(mid,str): mid = 1000*(mid[0]=='W')+int(mid[1:])-1
+    if mid>=1000: return (0,(mid-1000)%34,33-(mid-1000)/34,(mid-1000)%34+1+(34-(mid-1000)/34)*36)
     elif mid>719 and mid%30>5: return (1,mid%30-6,29-mid/30,mid%30-6+1+(30-mid/30)*26)
     elif mid<180 and mid%30<24: return (2,mid%30,5-mid/30,mid%30+1+(6-mid/30)*26)
     elif mid%30<6: return (3,mid%30,23-mid/30+6,mid%30+1+(24-mid/30+6)*8)

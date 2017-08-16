@@ -7,8 +7,8 @@ largs = [('n','','several','suffix'),
          ('nf',1,'','number_of_sim_files'),
          ('ebeam',2,'','beam_energy_for_simulation'),
          ('lum',[1.,1.],'','luminosity (ub^-1)')]
-print_help(largs)
-[suffix,indir,intrange,nf,ebeam,luminosity] = [catch_arg(x,y,z) for x,y,z,c in largs]
+
+[suffix,indir,intrange,nf,ebeam,luminosity] = ArgParser(largs).argl
 
 from misc_root import *
 from esepp import ep_q2, m_e
@@ -87,10 +87,10 @@ for i in range(nf):
     u = fs[i].Get('barycenter')
     for h in hbarth+[hbarq2]:
       h.Add(u.Get(h.GetName()))
-for h in hbarth+[hbarq2]: h.Scale(1./nf)
+for h in hbarth+[hbarq2]: h.Scale(1./nf/30) #number of merged files = 30
     
 # selection
-for i in range(nf):
+for i in progress(nf,show=1):
   u = fs[i].Get('selection')
   u2 = fs[i].Get('occupancy')
   for h1 in hselection:
@@ -193,7 +193,16 @@ gq2exp = tgraph(hbarq2,hq2,name='gq2sim_ep',title=q2n+xsn)
 
 # experimental ratio graphs
 grthexp = [[tgraph(hbarth[0],h[i],name='grth'+['','2'][j]+'sim_'+x,title=thn+rxsn) for i,x in enumerate(enames[1:])] for j,h in enumerate([hrth,hrth2])]
-grq2exp = [[tgraph(hbarq2,hrq22[i],name='grq2'+['','2'][j]+'sim_'+x,title=q2n+rxsn) for i,x in enumerate(enames[1:])] for j,h in enumerate([hrq2,hrq22])]
+grq2exp = [[tgraph(hbarq2,h[i],name='grq2'+['','2'][j]+'sim_'+x,title=q2n+rxsn) for i,x in enumerate(enames[1:])] for j,h in enumerate([hrq2,hrq22])]
+
+# remove points with low stats / weird behaviour
+for gth,gq2 in zip(unnest(grthexp[0]),unnest(grq2exp[0])):
+  for i in range(gth.GetN()-1):
+    if abs(gth.GetY()[i+1]-gth.GetY()[i])/(gth.GetX()[i+1]-gth.GetX()[i])>2:
+      gth.SetPoint(i+1,gth.GetX()[i+1],0.)
+      gth.SetPointError(i+1,gth.GetEX()[i+1],0.)
+      gq2.SetPoint(i+1,gq2.GetX()[i+1],0.)
+      gq2.SetPointError(i+1,gq2.GetEX()[i+1],0.)
 
 # comparison experimental/theory
 gthcomp = [[tgraph(hbarth[0],h[i],op=['/',[grththeo,grth2theo][j][0]],name='gth'+['','2'][j]+'comp_'+x+'_elas',title=thn+xsn+'_{data}/'+xsn+'_{theo}') for i,x in enumerate(enames[1:])] for j,h in enumerate([hrth,hrth2])]
@@ -203,8 +212,12 @@ gq2comp = [[tgraph(hbarq2,h[i],op=['/',[grq2theo,grq22theo][j][0]],name='gq2'+['
 print 'writing  histogramms and graphs'
 writelisto(hselection,fout,['selection'])
 writelisto([hbarth,hbarq2],fout,['barycenter'])
-writelisto([hth,hth_int,hrth,hrth2,hrth_int,gthexp,grthexp,gomtheo,grththeo,gthcomp],fout,['theta'])
-writelisto([hq2,hrq2,gq2exp,grq2exp,gq2theo,grq2theo,gq2comp],fout,['q2'])
+writelisto([hth,hth_int],fout,['theta'])
+writelisto([hrth,hrth2,hrth_int,gthexp,grthexp,gomtheo,grththeo],fout,['theta'],yrg=[0.,1.1])
+writelisto(gthcomp,fout,['theta'],yrg=[0.5,2.])
+writelisto(hq2,fout,['q2'])
+writelisto([hq2,hrq2,gq2exp,grq2exp,gq2theo,grq2theo],fout,['q2'],yrg=[0,1.1])
+writelisto(gq2comp,fout,['q2'],yrg=[0.5,2.])
 # writelisto([pth,prth],fout,['pulls'])
   
 fout.Close()

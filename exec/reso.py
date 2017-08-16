@@ -23,6 +23,8 @@ hrx = [[[f.transition.Get('hrx_'+str(i)+'_'+str(j)+'_'+str(k)) for k in range(nb
 
 le = [200+(900/nbinE/2.)+(900/nbinE)*j for j in range(nbinE)]
 
+weizhi_params = readfile(workf+'/resolution_curve_eSigma4_ex1.txt',[str,float,float,float],out=dict)
+
 # reso by modules
 lerror,lalpha,lreso,lmean,lsigma,ldmean,ldsigma = [],[],[],[],[],[],[]
 lgreso = []
@@ -36,55 +38,56 @@ for x,y in progress(module_names.items(),precision=0,show=3,insert=lambda x:x[1]
       hr[x][0][j].Add(hr[x][1][j])
       # [m,s,dm,ds,_] = fit_gaussian(hr[x][0][j],200.,sigma,[0.5,1.5])
  
-     #  [m,s,dm,ds,_] = fit_2gaus(hr[x][0][j],100.,[0.5,2.])
-#       if m<0. or dm==0. or s>0.3: working = False
-#       else:
-#         lm.append(m)
-#         ls.append(s)
-#         ldm.append(dm)
-#         lds.append(ds)
-#     if not working:
-#       lerr.append(j)
-#       lm.append(0)
-#       ls.append(0)
-#       ldm.append(0)
-#       lds.append(0)
+      [m,s,dm,ds,_] = fit_2gaus(hr[x][0][j],100.,[0.5,2.])
+      if m<0. or dm==0. or s>0.3: working = False
+      else:
+        lm.append(m)
+        ls.append(s)
+        ldm.append(dm)
+        lds.append(ds)
+    if not working:
+      lerr.append(j)
+      lm.append(0)
+      ls.append(0)
+      ldm.append(0)
+      lds.append(0)
 
-#   if len(lerr)==nbinE:
-#     print ('no stat at all for module '+y).ljust(89)
-#     lalpha.append([0,0]);  lreso.append([0,0]);
-#     lgreso.append(None)
-#   else:
-#     sel = [j for j in range(2,8)+range(11,16) if lm[j]!=0]
-#     # [galpha,_,alpha,_,dalpha] = fit_list('[0]+[1]*x*0.001',le,lm,dy=ldm,sel=sel)
-#     alpha, dalpha = 0,0
-#     [greso,reso1,reso2,reso3,dreso1,dreso2,dreso3] = fit_list('sqrt(([0]/sqrt(x*0.001))^2 + ([1]/(x*0.001))^2 + [2]^2)',le,ls,dy=lds,xrg=[250,1050],sel=sel)
-#     # [greso,reso1,reso2,reso3,dreso1,dreso2,dreso3] = fit_list('sqrt(([0]/sqrt(x*0.001))^2+([1]/(x*0.001))^2+([2]/(x*0.001)^2)^2)',le,ls,dy=lds,xrg=[250,1050],sel=sel)
-#     reso = (reso1**2+reso2**2+reso3**2)**0.5
-#     dreso = 0
-#     if reso1!=0: reso+=(dreso1/reso1)**2
-#     if reso2!=0: reso+=(dreso2/reso2)**2
-#     if reso3!=0: reso+=(dreso3/reso3)**2
-#     if dreso>0: dreso = reso*dreso**0.5
-#     if abs(alpha)>0.5: alpha = 0
-#     if reso<0.015 or reso>0.3: reso = 0
-#     lalpha.append([alpha,dalpha])
-#     lreso.append([reso1,reso2,reso3,dreso1,dreso2,dreso3,reso,dreso])
-#     greso.SetName('greso_'+y)
-#     lgreso.append(greso)
+  if len(lerr)==nbinE:
+    print ('no stat at all for module '+y).ljust(89)
+    lalpha.append([0,0]);  lreso.append([0,0,0,0,0,0,0,0]);
+    lgreso.append(None)
+  else:
+    #sel = [j for j in range(2,8)+range(11,16) if lm[j]!=0]
+    sel = range(2,10)+range(11,16) if i!=1 else range(1,9)+range(11,14)
+    sel = [j for j in sel if lm[j]!=0]
+    # [galpha,_,alpha,_,dalpha] = fit_list('[0]+[1]*x*0.001',le,lm,dy=ldm,sel=sel)
+    alpha, dalpha = 0,0
+    [greso,greso2,reso1,reso2,reso3,dreso1,dreso2,dreso3] = fit_list('sqrt(([0]/sqrt(x*0.001))^2 + ([1]/(x*0.001))^2 + [2]^2)',le,ls,dy=lds,xrg=[250,1050],sel=sel,start=weizhi_params[y])
+    reso = (reso1**2+reso2**2+reso3**2)**0.5
+    dreso = 0
+    if reso1!=0: dreso+=(dreso1/reso1)**2
+    if reso2!=0: dreso+=(dreso2/reso2)**2
+    if reso3!=0: dreso+=(dreso3/reso3)**2
+    if dreso>0: dreso = reso*dreso**0.5
+    if abs(alpha)>0.5: alpha = 0
+    if reso<0.015 or reso>0.3: reso = 0
+    lalpha.append([alpha,dalpha])
+    lreso.append([reso1,reso2,reso3,dreso1,dreso2,dreso3,reso,dreso])
+    greso.SetName('greso_'+y)
+    lgreso.append(greso)
 
-#   lmean.append(lm)
-#   lsigma.append(ls)
-#   ldmean.append(ldm)
-#   ldsigma.append(lds)
-#   lerror.append(lerr)
+  lmean.append(lm)
+  lsigma.append(ls)
+  ldmean.append(ldm)
+  ldsigma.append(lds)
+  lerror.append(lerr)
 
-# for x,y in zip(['mean','sigma','dmean','dsigma','error','reso','alpha'],[lmean,lsigma,ldmean,ldsigma,lerror,lreso,lalpha]):
-#   writelist(indir+'/'+x+suffix[-1]+'_'+str(int(sigma))+'.txt',[[a]+b for a,b in zip(module_names.values(),y)],ro=5,ljust=8)
+for x,y in zip(['mean','sigma','dmean','dsigma','error','reso','alpha'],[lmean,lsigma,ldmean,ldsigma,lerror,lreso,lalpha]):
+  writelist(indir+'/'+x+suffix[-1]+'_'+str(int(sigma))+'.txt',[[a]+b for a,b in zip(module_names.values(),y)],ro=5,ljust=8)
 
 
-# writelisto([lgreso],fout,['modules',module_names.values()])
-# writelisto([[x[0] if x!=[] else [] for x in hr.values()]],fout,['modules',module_names.values()])
+writelisto([lgreso],fout,['modules',module_names.values()])
+writelisto([[x[0] if x!=[] else [] for x in hr.values()]],fout,['modules',module_names.values()])
 
 # transition region
 
@@ -152,15 +155,16 @@ for i in range(len(regions)):
     lalpha.append([0,0])
     lreso.append([0,0])
   else:
-    sel = range(2,8)+range(11,15)
+    #sel = range(2,8)+range(11,15)
+    sel = range(2,10)+range(11,16) if i!=1 else range(1,9)+range(11,14)
     [galpha,galpha2,_,alpha,_,dalpha] = fit_list('[0]+[1]*x*0.001',le,lm,dy=ldm,sel=sel)
     [greso,greso2,reso1,reso2,reso3,dreso1,dreso2,dreso3] = fit_list('sqrt(([0]/sqrt(x*0.001))^2 + ([1]/(x*0.001))^2 + [2]^2)',le,ls,dy=lds,xrg=[250,1050],sel=sel)
     # [greso,reso1,reso2,reso3,dreso1,dreso2,dreso3] = fit_list('sqrt(([0]/sqrt(x*0.001))^2+([1]/(x*0.001))^2+([2]/(x*0.001)^2)^2)',le,ls,dy=lds,xrg=[250,1050],sel=sel)
     reso = (reso1**2+reso2**2+reso3**2)**0.5
     dreso = 0
-    if reso1!=0: reso+=(dreso1/reso1)**2
-    if reso2!=0: reso+=(dreso2/reso2)**2
-    if reso3!=0: reso+=(dreso3/reso3)**2
+    if reso1!=0: dreso+=(dreso1/reso1)**2
+    if reso2!=0: dreso+=(dreso2/reso2)**2
+    if reso3!=0: dreso+=(dreso3/reso3)**2
     if dreso>0: dreso = reso*dreso**0.5
     if abs(alpha)>0.5: alpha = 0
     if reso<0.015 or reso>0.3: reso = 0

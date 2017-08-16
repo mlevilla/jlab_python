@@ -7,9 +7,8 @@ largs = [('files',['',''],'','files'),
          ('ebeam',2.142,'','beam_energy'),
          ('ff',5,'','form_factor'),
          ('int',[0.8,2.0],'','integration range')]
-print_help(largs)
 
-[files,suffix,outdir,ebeam,ff,intrange] = catch_args(largs)
+[files,suffix,outdir,ebeam,ff,intrange] = ArgParser(largs).argl
 
 from misc_root import *
 from esepp import *
@@ -65,6 +64,7 @@ gq2_comb = tgraph(q2bin_data,lsigma[0][2][0][:max_range]+lsigma[1][2][0][max_ran
 # GE and other quantities
 ev_data = [EpEvent(th*degrad,ebeam) for th in thbin_data]
 gsigma_omott = tgraph(q2bin_data,gq2_comb,op=['/',[ev.mott() for ev in ev_data]],name='gq2_over_mott',title=q2n+'#frac{d#sigma}{d#sigma_{Mott}}')
+
 ge = [(y/ev.mott()/(1+ev.tau())-ev.tau()/ev.epsilon()*GM(ev.Q2(),flag=ff))**0.5 for y,ev in zip(gq2_comb.GetY(),ev_data)]
 dge = [x*dy/y if y!=0 else 0. for x,y,dy in zip(ge,gq2_comb.GetY(),gq2_comb.GetEY())]
 
@@ -74,7 +74,7 @@ gr_ge = tgraph(rbin_data,ge,dy=dge,name='gr_ge_ee3',title=';r^{-2} (fm^{-2});G_{
 ffit_q2 = TF1('ffit_q2','[0]-[1]^2*x/6/0.197327^2',0,0.05)
 ffit_r = TF1('ffit_r','[0]-[1]^2*x/6',0,1)
 
-gq2_ge.Fit(ffit_q2,'q0')
+gq2_ge.Fit(ffit_q2)
 gq2_ge.Fit(ffit_q2)
 
 gth_ep = tgraph(thbin_theo,cs_ep,name='gthep_theo',title=thn+xsn)

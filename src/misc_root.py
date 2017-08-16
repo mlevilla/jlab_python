@@ -29,7 +29,9 @@ def list_op(y,dy,ops):
 
 def root_to_list(x=[],y=[],dx=[],dy=[]):
   if y==dx==dy==[]: x,y = [],x
-  if isinstance(y,TH1): 
+  if isinstance(x,TH1): x = [x.GetBinCenter(i+1) for i in range(x.GetNbinsX())]
+  if isinstance(x,TGraph): x = [a for a in x.GetX()]
+  if isinstance(y,TH1):
     if not x: x = [y.GetBinCenter(i+1) for i in range(y.GetNbinsX())]
     if not dx: dx = [y.GetBinWidth(i+1)/2. for i in range(y.GetNbinsX())]
     if not dy: dy = [y.GetBinError(i+1) for i in range(y.GetNbinsX())]
@@ -47,15 +49,15 @@ def root_op(y,dy,ops):
     _,y[i],_,dy[i] = root_to_list([],y[i],[],dy[i])
   return list_op(y,dy,ops)
     
-def tgraph(x,y,dx=[],dy=[],ylim=[],op=[],**args):
-  # conversion from TH1F of TGraph
+def tgraph(x,y=[],dx=[],dy=[],ylim=[],op=[],**args):
+  # conversion from TH1F or TGraph
   x,y,dx,dy = root_to_list(x,y,dx,dy)
   # length
   n = len(x)
   if n!=len(y): return TGraph()
   # operation on y axis
   if op:
-    _,y2,_,dy2 = root_to_list([],op[1])
+    _,y2,_,dy2 = root_to_list(x,op[1])
     #print y,y2,dy,dy2
     #print
     y,dy = list_op([y,y2],[dy,dy2],[op[0]])
@@ -415,3 +417,9 @@ def multiply_binwidth(h):
     err = h.GetBinError(i)
     h[i] = h[i]*h.GetBinWidth(i)
     h.SetBinError(i,err*h.GetBinWidth(i))
+
+def hintegral(h,a,b):
+  binning = get_binning(h)
+  ia = max(i for i,x in enumerate(binning) if a>=x)
+  ib = min(i for i,x in enumerate(binning) if b<=x)
+  return sum(h[i+1] for i in range(ia,ib))

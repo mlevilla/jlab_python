@@ -3,9 +3,7 @@ from params import *
 
 largs = [('r',-1,'several','run_number'),
          ('n','','','suffix'),
-         ('b',False,'','batch_mode'),
          ('m','island','','clustering_method'),
-         ('s',0,'','show_bar'),
          ('o','.','','output_folder'),
          ('l',1.0,'','limit'),
          ('phi',[10.,5.],'','deltaphi_cut'),
@@ -20,13 +18,13 @@ largs = [('r',-1,'several','run_number'),
          ('spacer',False,'','gem_spacer_and_dead_area'),
          ('nf',1,'','number_of_simulation_files'),
          ('gem',[0,1],'','use_gem_coordinate')]
-print_help(largs)
-[lrun,suffix,batch,method,show,outdir,limit,phicut,elascut,zcut,thetacut,indir,sim,ebeam,rdead,fiducial,spacer,nf,gem] = catch_args(largs)
+parser = ArgParser(largs)
+[lrun,suffix,method,outdir,limit,phicut,elascut,zcut,thetacut,indir,sim,ebeam,rdead,fiducial,spacer,nf,gem] = parser.argl
 
 ######################
 ## batch processing ##
 ######################
-if batch:
+if batch[0]:
   if sim=='': jsub_fast(largs,'shtree'+suffix,['b','r','o','s'],[['r'],get_runs_between(lrun[0],lrun[-1])],outdir)
   else: jsub_fast(largs,'shtree'+suffix,['b','nf','o','s'],[['n','sim'],['_'+str(x) for x in range(nf)]],outdir)
   sys.exit()
@@ -70,7 +68,7 @@ zcut = [zcut[g] for g in gem]
 ################
 ## event loop ##
 ################
-for i,_ in enumerate(progress(t,show=show,n=t.GetEntries(),precision=2,limit=limit)):
+for i,_ in enumerate(progress(t,show=show_progress[0],n=t.GetEntries(),precision=2,limit=limit)):
   if sim=='': 
     [E,c,idx,lg,cid,_] = get_variables(t,lincorr=1,mgem=1,exclude_edge=fiducial,exclude_dead=(rdead!=0),match=any(gem),rdead=rdead,spacer=spacer)
   else: 

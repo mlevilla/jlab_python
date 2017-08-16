@@ -65,8 +65,8 @@ def mott(theta=None,Ei=1.1,Ef=None,Q2=None,unit='barn',ml=m_e,mn=m_p):
   pi = (Ei**2-ml**2)**0.5
   pf = (Ef**2-ml**2)**0.5
   if Q2 is None: Q2 = pf**2*sin(theta)**2+(pi-pf*cos(theta))**2-(Ei-Ef)**2
-  d = (Ef*pi)/(Ei*pf)
   if Q2==0: return 0.
+  d = (Ef*pi)/(Ei*pf)
   ds = (alpha/(2*Ei))**2*(1+Q2/(4*Ei*Ef))/(Q2/(4*Ei*Ef))**2/d*mn*(Ef**2-ml**2)/(mn*Ei*Ef+ml**2*(Ef-Ei-mn))
   if unit=='barn': ds *= gb
   return ds
@@ -95,6 +95,7 @@ class EpEvent:
     self._Ei = Ei
     self._Ef = Ef
     self._Ep = self.vpf.E()
+    self.theta = theta
 
   def _get_Ei(self): return self.vli.E()
   def _get_Ef(self): return self.vlf.E()
@@ -108,7 +109,7 @@ class EpEvent:
   Ep  = property(_get_Ep)
 
   def mott(self,corr='',unit='barn'):
-    ds = mott(Ei=self.Ei,Ef=self.Ef,mn=self.mn,ml=self.ml,unit=unit)
+    ds = mott(theta=self.theta,Ei=self.Ei,Ef=self.Ef,mn=self.mn,ml=self.ml,unit=unit)
     if corr=='brem': ds*=(1+self.d_brem_ee()+self.d_brem_pp()+self.d_brem_ep()+self.d_vac()+self.d_vertex()+self.d_prime())
     return ds
 

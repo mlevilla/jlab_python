@@ -22,40 +22,57 @@ def proj(c,z):
 def ftheta(c,z_origin=0.): return atan2((c[0]**2+c[1]**2)**0.5,c[2]-z_origin)
 
 def fphi(c): return atan2(c[1],c[0]) 
+
+def print_event(t=None,c=None,E=None,iev=None,typ='ep'):
+  if t is None:
+    print 'event',iev
+    for i in range(len(E)):
+      print 'cluster',i
+      print 'energy =',E[i]
+      print 'hycal coordinate =',c[i][0]
+      print 'gem coordinate =',c[i][1]
+      print 'angle =',
+      print 'E_theo' 
   
 #### hycal ####
 
 def fiducial_cut(cid,c,exclude_edge,exclude_dead,rdead=1.):
-  x,y = c[0]*zhycal/c[2], c[1]*zhycal/c[2]
+  if c==[]: return True
+  [x,y,z] = proj(c,zhycal)
   if exclude_edge and ((cid in edge) or (abs(x)<2*cell_size[0][0] and abs(y)<2*cell_size[0][1]) or (abs(x)>17*cell_size[0][0]+5*cell_size[1][0]) or (abs(y)>17*cell_size[0][1]+5*cell_size[1][1])): 
     return True
   if exclude_dead:
     for i in dead_modules:
       k = int(i<1000)
-      if i==cid or ((x-module_pos[i][0])**2+(y-module_pos[i][1])**2)**0.5<rdead*dead_radius[k]: 
+      # if i==cid: return True
+      if ((x-module_pos[i][0])**2+(y-module_pos[i][1])**2)**0.5<rdead*dead_radius[k]: 
         return True
   return False
 
 #### gem ####
 
 def merge_gem(c):
-  if c[1]==c[2]==[]: return [c[0],[]]
-  elif c[1]==[]: return [c[0],c[2]]
-  elif c[2]==[]: return [c[0],c[1]]
+  if c[1]==c[2]==[]: return [c[0],[]],0
+  elif c[1]==[]: return [c[0],c[2]],2
+  elif c[2]==[]: return [c[0],c[1]],1
   # else: return [c[0],[0.5*(c[1][i]+c[2][i]) for i in range(3)]]
   else:
     c_proj1 = [proj(x,zhycal) for x in c]
     dr1 = [((x[0]-c_proj1[0][0])**2+(x[1]-c_proj1[0][1])**2)**0.5 for x in c_proj1[1:]]
     c_proj2 = proj(c[1],c[2][2])
     dr2 = ((c_proj2[0]-c[2][0])**2+(c_proj2[1]-c[2][1])**2)**0.5
-    if dr2>10*0.08 and dr1[0]>dr1[1]: return [c[0],c[2]]
-    elif dr2>10*0.08: return [c[0],c[1]]
-    else: return [c[0],[0.5*(c[1][i]+c[2][i]) for i in range(3)]]
+    if dr2>10*0.08 and dr1[0]>dr1[1]: return [c[0],c[2]],2
+    elif dr2>10*0.08: return [c[0],c[1]],1
+    else: return [c[0],[0.5*(c[1][i]+c[2][i]) for i in range(3)]],3
 
-def gem_dead(x,y):
-  return  (21<=x<=434 and -327.05<=y<=-337.05) or (434<=x<=436 and -337.05<=y)
+def gem_dead(x,y,igem):
+  if igem!=2: return False
+  return  (21<=x-gem2_center[0]<=434 and -327.05<=y-gem2_center[1]<=-337.05) or (434<=x-gem2_center[0]<=436 and -337.05<=y-gem2_center[1])
 
-def gem_spacers(x,y,width=20.):
+def gem_spacers(x,y,igem=0,width=20.):
+  if igem==1: x,y = x-gem1_center[0],y-gem1_center[1]
+  elif igem==2: x,y = x-gem2_center[0],y-gem2_center[1]
+  elif igem==3: x,y = x-0.5*(gem1_center[0]+gem2_center[0]),y-0.5*(gem1_center[1]+gem2_center[1])
   x_spacer = [-344.45,-161.55,161.55,344.45]
   y_spacer = [-409.3,-204,0,204.1,409.4]
   return any([abs(x-xs)<width/2. for xs in x_spacer]) or any([abs(y-ys)<width/2. for ys in y_spacer])
@@ -72,13 +89,15 @@ def correct_linearity(E,cid):
 def get_variables(t,lincorr=0,mgem=1,match=0,exclude_edge=0,exclude_dead=0,rdead=1.,spacer=0):
   E,c,idx,lg,cid = [],[],[],[],[]
   for i in range(t.n_cl):
+    if t.nh[i]<2: continue
     # coordinate
     ctmp = get_coordinate(t,i)
-    #ctmp = [proj(x,zhycal) if x!=[] else [] for x in ctmp]
-    if mgem: ctmp = merge_gem(ctmp)
+    # hycal
+    if fiducial_cut(t.id[i],[ctmp[0][0]-hycal_center[0],ctmp[0][1]-hycal_center[1],ctmp[0][2]],exclude_edge,exclude_dead,rdead): continue
+    # gem
+    if mgem: ctmp,igem = merge_gem(ctmp)
     if match and ((len(ctmp)==2 and ctmp[1]==[]) or (len(ctmp)==3 and ctmp[1]==ctmp[2]==[])): continue
-    if match and fiducial_cut(t.id[i],ctmp[1],exclude_edge,exclude_dead,rdead): continue
-    if spacer and mgem and (ctmp[1]==[] or gem_spacers(*ctmp[1][:2]) or gem_dead(*ctmp[1][:2])): continue
+    if spacer and mgem and (ctmp[1]==[] or gem_spacers(*ctmp[1][:2],igem=igem) or gem_dead(*ctmp[1][:2],igem=igem)): continue
     # energy
     if lincorr: Etmp = correct_linearity(t.E[i],t.id[i])
     else: Etmp = t.E[i]
@@ -86,7 +105,7 @@ def get_variables(t,lincorr=0,mgem=1,match=0,exclude_edge=0,exclude_dead=0,rdead
     E.append(Etmp)
     c.append(ctmp)
     idx.append(i)
-    lg.append(int(t.id[i]<1000)) 
+    lg.append(int(t.id[i]<1000 or is_in_region(t.id[i],'transition_pwo'))) 
     cid.append(t.id[i])
   return [E,c,idx,lg,cid,t.Ebeam/1000.]
 
@@ -112,23 +131,20 @@ def match_sim(c,E,lg,sigma=6):
 def get_variables_sim(t,match=0,exclude_edge=0,exclude_dead=0,lincorr=0,hycal_eff=0,rdead=1.,spacer=0,do_matching=0):
   E,c,idx,lg,cid = [],[],[],[],[]
   for i in range(getattr(t,'HC.N')):
+    # hycal
     E_hycal = correct_linearity_sim(getattr(t,'HC.P')[i]) if lincorr else getattr(t,'HC.P')[i]
     if E_hycal<30.: continue
-
-    c_hycal = [getattr(t,'HC.'+x)[i]-[0,ztarget][int(x=='Z')] for x in ['X','Y','Z']] # maxime
-    # c_hycal = [getattr(t,'HC.'+x)[i]-[0,ztarget-3000][int(x=='Z')] for x in ['X','Y','Z']] # weizhi
-    # c_hycal = proj(c_hycal,zhycal)
+    c_hycal = [getattr(t,'HC.'+x)[i]-[0,ztarget][int(x=='Z')] for x in ['X','Y','Z']]
     cid_hycal = getattr(t,'HC.CID')[i]
-    lg_hycal = int(cid_hycal<1000)
+    lg_hycal = int(cid_hycal<1000 or is_in_region(cid_hycal,'transition_pwo'))
     if hycal_eff and (not efficiency_sim(c_hycal)): continue
-    
+    #gem
     c_gem = [getattr(t,'GEM.'+x)[i]-[0,ztarget][int(x=='Z')] for x in ['X','Y','Z']] if getattr(t,'GEM.Z')[i]>0 else [] # maxime
-    # c_gem = [-getattr(t,'GEM.X')[0],getattr(t,'GEM.Y')[0],getattr(t,'GEM.Z')[0]-ztarget+3000] # weizhi
-    # c_gem = proj(c_gem,zhycal) if c_gem!=[] else []
     if match and c_gem==[]: continue
-    if match and fiducial_cut(cid_hycal,c_gem,exclude_edge,exclude_dead,rdead): continue
+    if fiducial_cut(cid_hycal,c_hycal,exclude_edge,exclude_dead,rdead): continue
     if match and do_matching and (not match_sim([c_hycal,c_gem],E_hycal,lg_hycal)): continue
-    if spacer and (c_gem==[] or gem_spacers(*c_gem[:2]) or gem_dead(*c_gem[:2])): continue
+    if spacer and (c_gem==[] or gem_spacers(*c_gem[:2],igem=0) or gem_dead(*c_gem[:2],igem=2)): continue
+
     idx.append(i)
     cid.append(cid_hycal)
     E.append(E_hycal)

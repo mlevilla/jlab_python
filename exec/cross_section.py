@@ -6,8 +6,8 @@ largs = [('n','','several','suffix'),
          ('i',workf,'','input_dir'),
          ('int',[0.8,2.],'','integration range'),
          ('spacer',False,'','spacer_efficiency')]
-print_help(largs)
-[suffix,lr,indir,intrange,spacer] = [catch_arg(x,y,z) for x,y,z,c in largs]
+
+[suffix,lr,indir,intrange,spacer] = ArgParser(largs).argl
 
 from misc_root import *
 from selection import *
@@ -33,17 +33,11 @@ for i in range(nbin):
 intrange = [thbin[idx_intrange[0]-1],thbin[idx_intrange[1]-1]]
 
 # target and beam
-live_charge = readfile('/u/home/pcrad/backup/beam_charge.dat',[int,float],cols=[0,3],start=1,out=dict)
-thickness = readfile(conff+'/target_info.txt',[int,float],cols=[0,5],out=dict,start=1)
-dthickness = readfile(conff+'/target_info.txt',[int,float],cols=[0,6],out=dict,start=1)  
+load_live_charge()
+load_thickness() 
 
 # periods
-runs1 = [[[1288,1290,1291,1292,1293],[1289,1294]],[[1295,1296,1301,1302,1303,1304],[1294,1306]],[[1308,1309,1310,1311],[1306,1312]],[[1313,1314,1315,1316],[1312,1317]],[[1319,1320,1322,1323,1325,1328],[1317,1324,1326,1327]],[[1331,1332,1334,1336,1337,1338,1340,1341],[1329,1330,1339]]]
-runs2 = [[[1443,1444,1445,1446],[1431,1448]],[[1449,1451,1452,1453],[1448,1454]],[[1455,1456,1457,1458],[1454,1459]],[[1460,1461,1462,1463],[1459,1465]],[[1466,1467,1468],[1465,1469]],[[1470,1471],[1469,1473]],[[1474,1475,1476],[1473,1477]],[[1478,1479,1480],[1477,1481]],[[1482,1484,1485],[1481,1486]],[[1487,1488,1489],[1486,1490]]]
-periods = runs1 if Ebeam<2. else runs2
-
-periods = [[[x for x in y if lr[0]<=x<=lr[1]] for y in z] for z in periods]
-periods = [[[x for x in y] for y in z] for z in periods if z[0]!=[] and z[1]!=[]]
+periods = get_bg_runs(lr[0],lr[1])
 
 # barycenter histograms
 hbarth = listofhisto('hbarth',['ep','ee1','ee2','ee3'],nbin,xbin=thbin,title=';#theta (deg);#theta (deg)')
@@ -190,8 +184,6 @@ for i in range(4):
         deff_temp += (hth[4+j][i].GetBinError(k)*sin(hbarth[i][k]*degrad)*(thbin[k]-thbin[k-1])*degrad)**(-2)
     if deff_temp!=0: hth_int[4+j][i].SetBinError(1,deff_temp**(-0.5))
     hth_int[4+j][i].Scale(1./(cos(intrange[0]*degrad)-cos(intrange[1]*degrad)))
-    # hth_int[4][i].Add(hth_int[2][i])
-    # hth_int[4][i].Scale(1./sum_lcharge*1e28/average_thickness/6.242e9/2/pi/(cos(intrange[0]*degrad)-cos(intrange[1]*degrad)))
     if i==0: continue
     # ratio ep/moller
     hrth[j][i-1].Divide(hth[4+j][0],hth[4+j][i])
@@ -236,7 +228,7 @@ ftheo = TFile(dataf+'/graph_theo0.root')
 gomtheo = [[ftheo.Get('gom_{0}_{1}_{2}'.format(int(Ebeam),x,y)) for x in ['ep','moller']] for y in ['elas','brem']]
 gththeo = [[ftheo.Get('gth_{0}_{1}_{2}'.format(int(Ebeam),x,y)) for x in ['ep','moller']] for y in ['elas','brem']]
 gq2theo = [tgraph([ep_q2(th*degrad,Ebeam) for th in x[0].GetX()],x[0],name='gq2_theo_'+['elas','brem'][i],title=q2n+xsn) for i,x in enumerate(gomtheo)]
-grththeo = [tgraph(x[0],x[0],op=['/',x[1]],name='grththeo_'+['elas','brem'][i],title=thn+rxsn) for i,x in enumerate(gomtheo)]
+grththeo = [tgraph(x[0],op=['/',x[1]],name='grththeo_'+['elas','brem'][i],title=thn+rxsn) for i,x in enumerate(gomtheo)]
 grq2theo = [tgraph(gq2theo[i],x[0],op=['/',x[1]],name='grq2theo_'+['elas','brem'][i],title=q2n+rxsn) for i,x in enumerate(gomtheo)]
 theo_int = [[y.Integral(int((intrange[0]-0.5)/0.01+1),int((intrange[1]-0.5)/0.01+1))/(cos(intrange[0]*degrad)-cos(intrange[1]*degrad))/2./pi for y in x] for x in gththeo]
 grth2theo = [tgraph(x[0],x[0],op=['/',[theo_int[i][1] for _ in range(x[0].GetN())]],name='grth2theo_'+['elas','brem'][i],title=thn+rxsn) for i,x in enumerate(gomtheo)]
@@ -248,7 +240,16 @@ gq2exp = [tgraph(hbarq2,hq2[j],name='gq2exp_'+['','eff_'][j]+'ep',title=q2n+xsn)
 
 # experimental ratio graphs
 grthexp = [[[tgraph(hbarth[0],h[j][i],name='grth'+['','2'][k]+'exp_'+['','eff_'][j]+x,title=thn+rxsn) for i,x in enumerate(enames[1:])] for j in range(2)] for k,h in enumerate([hrth,hrth2])] 
-grq2exp = [[[tgraph(hbarq2,h[j][i],name='grq2'+['','2'][k]+'exp_'+['','eff_'][j]+x,title=q2n+rxsn) for i,x in enumerate(enames[1:])] for j in range(2)] for k,h in enumerate([hrth,hrq22])] 
+grq2exp = [[[tgraph(hbarq2,h[j][i],name='grq2'+['','2'][k]+'exp_'+['','eff_'][j]+x,title=q2n+rxsn) for i,x in enumerate(enames[1:])] for j in range(2)] for k,h in enumerate([hrq2,hrq22])] 
+
+# remove points with low stats / weird behaviour
+for gth,gq2 in zip(unnest(grthexp[0]),unnest(grq2exp[0])):
+  for i in range(gth.GetN()-1):
+    if abs(gth.GetY()[i+1]-gth.GetY()[i])/(gth.GetX()[i+1]-gth.GetX()[i])>2:
+      gth.SetPoint(i+1,gth.GetX()[i+1],0.)
+      gth.SetPointError(i+1,gth.GetEX()[i+1],0.)
+      gq2.SetPoint(i+1,gq2.GetX()[i+1],0.)
+      gq2.SetPointError(i+1,gq2.GetEX()[i+1],0.)
 
 # comparison experimental/theory
 gthcomp = [[tgraph(hbarth[0],h[i],op=['/',[grththeo,grth2theo][j][0]],name='gth'+['','2'][j]+'comp_'+x+'_elas',title=thn+xsn+'_{data}/'+xsn+'_{theo}') for i,x in enumerate(enames[1:])] for j,h in enumerate([hrth[0],hrth2[1]])]
@@ -259,10 +260,12 @@ gq2comp = [[tgraph(hbarq2,h[i],op=['/',[grq2theo,grq22theo][j][0]],name='gq2'+['
 print 'writing  histogramms and graphs'
 writelisto(hselection,fout,['selection'])
 writelisto([hbarth,hbarq2],fout,['barycenter'])
-writelisto([hth,hth_int,hrth,hrth2,hrth_int],fout,['theta'])
-writelisto([gthexp,grthexp,gomtheo,grththeo],fout,['theta'],yrg=[0,1.5])
+writelisto([hth,hth_int],fout,['theta'])
+writelisto([hrth,hrth2,hrth_int,gthexp,grthexp,gomtheo,grththeo],fout,['theta'],yrg=[0.,1.1])
 writelisto(gthcomp,fout,['theta'],yrg=[0.5,2.])
-writelisto([hq2,hrq2,gq2exp,grq2exp,gq2theo,grq2theo,gq2comp],fout,['q2'])
+writelisto(hq2,fout,['q2'])
+writelisto([hq2,hrq2,gq2exp,grq2exp,gq2theo,grq2theo],fout,['q2'],yrg=[0,1.1])
+writelisto(gq2comp,fout,['q2'],yrg=[0.5,2.])
 writelisto([pth,prth],fout,['pulls'])
   
 fout.Close()

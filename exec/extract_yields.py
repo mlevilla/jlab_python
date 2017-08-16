@@ -3,12 +3,10 @@ from params import *
 
 largs = [('r',-1,'several','run_number'),
          ('n','','','suffix'),
-         ('b',False,'','batch_mode'),
          ('m','island','','clustering_method'),
-         ('s',0,'','show_bar'),
          ('o','.','','output_folder'),
          ('l',1.0,'','limit'),
-         ('i',workf+'/trees_sel/island','','input_dir'),
+         ('i',workf+'/trees_sel2/island','','input_dir'),
          ('t',True,'','write_tree'),
          ('count',False,'','counter'),
          ('gem',1,'','use_gem_coordinate'),
@@ -24,15 +22,18 @@ largs = [('r',-1,'several','run_number'),
          ('nf',1,'','number_of_simulation_files'), # simulation
          ('lum',[1.,1.],'','luminosity (moller,ep)') # simulation
        ]
-print_help(largs)
-[lrun,suffix,batch,method,show,outdir,limit,indir,tree,cntv,gem,phicut,elascut,zcut,thetacut,rdead,fiducial,spacer,sim,ebeam,nf,luminosity] = catch_args(largs)
+aparser = ArgParser(largs)
+[lrun,suffix,method,outdir,limit,indir,tree,cntv,gem,phicut,elascut,zcut,thetacut,rdead,fiducial,spacer,sim,ebeam,nf,luminosity] = aparser.argl
 
 ######################
 ## batch processing ##
 ######################
-if batch:
-  if sim=='': jsub_fast(largs,'yields',['b','r','o','s'],[['r'],get_runs_between(lrun[0],lrun[-1])],outdir)
-  else: jsub_fast(largs,'simyields',['b','nf','o','s'],[['n','sim'],['_'+str(x) for x in range(nf)]],outdir)
+if batch[0]:
+  if sim==['']: 
+    runs = get_runs_between(lrun[0],lrun[-1]) if len(lrun)<=2 else lrun
+    jsub_fast(aparser,'yields',['r','o'],[['r'],runs],outdir,jobname='yields'+suffix,time=wtime[0])
+  else: 
+    jsub_fast(aparser,'simyields',['nf','o'],[['n','sim'],['_'+str(x) for x in range(nf)]],outdir,jobname='simyields'+suffix,time=wtime[0])
   sys.exit()
 
 print ' '.join(sys.argv)
@@ -55,7 +56,7 @@ else:
   f = TFile(indir+'/tree_{0}_{1}.root'.format(method,run))
   t = f.event
   t.SetBranchStatus("*",0)
-  for x in ['Ebeam','n_cl','id','E','xhycal','yhycal','zhycal','xgem','ygem','zgem']: t.SetBranchStatus(x,1)
+  for x in ['iev','Ebeam','n_cl','id','nh','E','xhycal','yhycal','zhycal','xgem','ygem','zgem']: t.SetBranchStatus(x,1)
   fout = TFile(outdir+'/yields_{0}{1}.root'.format(run,suffix),'recreate')
 
 load_run_params(run)
@@ -90,13 +91,12 @@ counter = Counter([0.7+0.5*i for i in range(15)],['ep_raw','ep_match','ep_theta'
 if tree: 
   tout,vout = tree_init('clusters',[('event','i'),('n_cl','i'),('dphi','f'),('zv','f'),('E','f[n_cl]'),('E_theo','f[n_cl]'),('theta_gem','f[n_cl]'),('theta_hycal','f[n_cl]'),('x_gem','f[n_cl]'),('y_gem','f[n_cl]'),('x_hycal','f[n_cl]'),('y_hycal','f[n_cl]'),('cid','i[n_cl]')],method+'_'+str(run),2)
 
-ratio_lum = luminosity[0]/luminosity[1]+0.5
-print ratio_lum
+ratio_lum = 0.5*(1.+luminosity[0]/luminosity[1]) if len(sim)>1 else limit
 
-for _ in progress(t,show=show,n=t.GetEntries(),precision=2,limit=ratio_lum):
-
+for _ in progress(enumerate(t),show=show_progress[0],n=t.GetEntries(),precision=1,limit=ratio_lum,insert=lambda x: str(x[0])+', '+str(x[1].GetTreeNumber())):
+  
   # variables
-  if sim=='': 
+  if sim==['']: 
     [E,c,idx,lg,cid,_] = get_variables(t,lincorr=1,mgem=1,exclude_edge=fiducial,exclude_dead=(rdead!=0),match=0,rdead=rdead,spacer=spacer)
   else: 
     [E,c,idx,lg,cid,_] = get_variables_sim(t,lincorr=0,exclude_edge=fiducial,exclude_dead=(rdead!=0),match=0,rdead=rdead,spacer=spacer)
@@ -113,6 +113,7 @@ for _ in progress(t,show=show,n=t.GetEntries(),precision=2,limit=ratio_lum):
     E_ep = [ep_energy_el(theta[j][i],Ebeam) for i in range(2)]
     elas_ep = E[j]/E_ep[gem]/1000-1
     elasc = elascut[1]*[0.024,0.062][lg[j]]/E_ep[gem]**0.5
+  
     helas1[0][0].Fill(elas_ep)
     h2cut1[0][0].Fill(th,E[j])
     # elasticity cut
@@ -200,6 +201,8 @@ for _ in progress(t,show=show,n=t.GetEntries(),precision=2,limit=ratio_lum):
         dE = E[j1]+E[j2]-Ebeam*1e3
         elas_sum = dE/Ebeam/1e3
         dEcut = elascut[1]*(([0.024,0.062][lg[j1]]*E[j1]**0.5)**2+([0.024,0.062][lg[j2]]*E[j2]**0.5)**2)**0.5*1000**0.5
+        
+
         # rj = [(c[j][1-k][0]**2+c[j][1-k][1]**2)**0.5 for j in [j1,j2]]
         # dz = c[j1][1-k][2] - c[j2][1-k][2]
         # zvertex = ((m_e+Ebeam)*rj[0]*rj[1]/2./m_e+dz**2/4)**0.5 - c[0][1-k][2] + dz/2.
@@ -242,7 +245,7 @@ for _ in progress(t,show=show,n=t.GetEntries(),precision=2,limit=ratio_lum):
           vmin = [elas_sum,dphi,zvertex]
     if dEmin!=10000:
       for j in jmin:
-        th = thetadeg[j][gem]
+        th = thetadeg[j][gem] 
         counter.count('ee'+str(k+2)+'_raw1',th)
         if counter.cut('ee'+str(k+2)+'_match1',c[j][gem]!=[],th): continue
         if counter.cut('ee'+str(k+2)+'_theta1',th>thetacut[1],th): continue
