@@ -7,20 +7,17 @@ largs = [('r',-1,'several','run_number'),
          ('o',workf,'','output_folder'),
          ('m','island','','clustering_method'),
          ('n','','','suffix'),
-         ('s',0,'','show_bar'),
          ('l',1.0,'','limit'),
-         ('b',False,'','batch_mode'),
          ('a',False,'','merge runs'),
          ('nbin',18,'','number_of_energy_bins'),
          ('sigma',-1,'','cut on sigma of elasticity'),
          ('c',False,'','correct mean elasticity')]
-print_help(largs)
-[lrun,indir,outdir,method,suffix,show,limit,batch,hadd,nbinE,sigma,correct] = catch_args(largs)
+[lrun,indir,outdir,method,suffix,limit,hadd,nbinE,sigma,correct] = ArgParser(largs,sub=1).argl
 
 ######################################################################################
 ################ batch jobs ##########################################################
 ######################################################################################
-if batch: 
+if batch[0]: 
   input_files = ' '.join([indir+'/tree_'+method+'_'+str(run)+'.root' for run in get_runs_between(lrun[0],lrun[-1],'calib')])
   args = del_args(largs,['b','r'])
   jsub(project='prad',track='analysis',jobname='histo{0}_{1}_{2}'.format(suffix,lrun[0],lrun[-1]),command=os.path.abspath('histo_modules.py'),options=args,memory='1024 MB',input_files=input_files,input_data='tree.root',output_data='histo_*'+suffix+'*.root',output_template=outdir+'/@OUTPUT_DATA@',os='centos7',other_files='{0}/mean{1}_2.txt {0}/sigma{1}_2.txt'.format(outdir,suffix))
@@ -30,7 +27,7 @@ if batch:
 ################ merging histograms ##################################################
 ######################################################################################
 if hadd:
-  if batch:
+  if batch[0]:
     jsub(project='prad',track='analysis',jobname='hadd'+suffix,command='hadd -f {0}/histo{1}.root {0}/histo_8*{1}.root {0}/histo_9*{1}.root'.format(outdir,suffix),memory='4 GB',os='centos7')
   else:
     os.system('hadd -f {0}/histo{1}.root {0}/histo_8*{1}.root {0}/histo_9*{1}.root'.format(outdir,suffix))
@@ -91,9 +88,10 @@ if sigma!=-1 or correct:
   mean_peak = {x:mean_peak[y] for x,y in module_names.items()}
   sigma_peak = {x:sigma_peak[y] for x,y in module_names.items()}
 
-for _ in progress(t,n=t.GetEntries(),show=show,precision=1,limit=limit):
+for _ in progress(t,n=t.GetEntries(),show=show_progress[0],precision=1,limit=limit):
 
-  if t.n_cl!=1 or t.n_tag!=1: continue
+  if t.n_tag!=1 or t.n_cl<1: continue
+  if t.id[0]!=1824 and t.n_cl!=1: continue
   if t.trigger not in [1,2,5]: continue
   if t.id[0] not in lmodule_run: continue
   j = int((t.E[0]-200.)/(900./nbinE))

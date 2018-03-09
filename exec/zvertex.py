@@ -3,15 +3,13 @@ from params import *
 
 largs = [('r',-1,'several','run_number'),
          ('n','','','suffix'),
-         ('b',False,'','batch_mode'),
          ('m','island','','clustering_method'),
-         ('s',0,'','show_bar'),
          ('o','.','','output_folder'),
          ('l',1.0,'','limit'),
          ('phi',[10.,5.],'','deltaphi_cut'),
          ('e',[6.,4.],'','energy_cut'),
          ('theta',[0.6,0.7],'','theta_cut'),
-         ('i',workf+'/trees_sel/island','','input_dir'),
+         ('i',workf+'/trees_sel5','','input_dir'),
          ('sim','','','simulation_file_name'),
          ('ebeam',2,'','beam_energy_for_simulation'),
          ('rdead',1.,'','radius_for_dead_module'),
@@ -19,15 +17,15 @@ largs = [('r',-1,'several','run_number'),
          ('spacer',False,'','gem_spacer_and_dead_area'),
          ('nf',1,'','number_of_simulation_files'),
          ('gem',[0,1],'','use_gem_coordinate')]
-print_help(largs)
-[lrun,suffix,batch,method,show,outdir,limit,phicut,elascut,thetacut,indir,sim,ebeam,rdead,fiducial,spacer,nf,gem] = catch_args(largs)
+aparser = ArgParser(largs,sub=1)
+[lrun,suffix,method,outdir,limit,phicut,elascut,thetacut,indir,sim,ebeam,rdead,fiducial,spacer,nf,gem] = aparser.argl
 
 ######################
 ## batch processing ##
 ######################
-if batch:
-  if sim=='': jsub_fast(largs,'shtree'+suffix,['b','r','o','s'],[['r'],get_runs_between(lrun[0],lrun[-1])],outdir)
-  else: jsub_fast(largs,'shtree'+suffix,['b','nf','o','s'],[['n','sim'],['_'+str(x) for x in range(nf)]],outdir)
+if batch[0]:
+  if sim=='': jsub_fast(aparser,'shtree'+suffix,['b','r','o','s'],[['r'],get_runs_between(lrun[0],lrun[-1])],outdir,time=wtime[0])
+  else: jsub_fast(aparser,'shtree'+suffix,['b','nf','o','s'],[['n','sim'],['_'+str(x) for x in range(nf)]],outdir,time=wtime[0])
   sys.exit()
 
 ####################
@@ -52,10 +50,13 @@ else:
   f = TFile(indir+'/tree_{0}_{1}.root'.format(method,run))
   t = f.event
   t.SetBranchStatus("*",0)
-  for x in ['iev','Ebeam','n_cl','id','E','xhycal','yhycal','zhycal','xgem','ygem','zgem']: t.SetBranchStatus(x,1)
+  for x in ['iev','Ebeam','n_cl','id','nh','E','xhycal','yhycal','zhycal','xgem','ygem','zgem']: t.SetBranchStatus(x,1)
   fout = TFile(outdir+'/zvertex_{0}{1}.root'.format(run,suffix),'recreate')
 
 load_run_params(run)
+load_positions(run=run)
+load_dead_pos(run=run)
+if sim=='': load_run_calib(run)
 Ebeam = beam_energy[0]/1000.
 
 tree_ee2, v_ee2 = tree_init('ee2',[('iev','i'),('dphi','f'),('zv1','f'),('zv2','f'),('dE','f'),('n_cl','i'),('icl','i[n_cl]'),('E','f[n_cl]'),('x_hycal','f[n_cl]'),('y_hycal','f[n_cl]'),('z_hycal','f[n_cl]'),('id_hycal','i[n_cl]'),('theta_hycal','f[n_cl]'),('phi_hycal','f[n_cl]'),('x_gem','f[n_cl]'),('y_gem','f[n_cl]'),('z_gem','f[n_cl]'),('theta_gem','f[n_cl]'),('phi_gem','f[n_cl]'),('E_theo','f[n_cl]')],'ee2',2)
@@ -67,9 +68,9 @@ phicut = [phicut[g] for g in gem]
 ################
 ## event loop ##
 ################
-for i,_ in enumerate(progress(t,show=show,n=t.GetEntries(),precision=2,limit=limit)):
+for i,_ in enumerate(progress(t,show=show_progress[0],n=t.GetEntries(),precision=2,limit=limit)):
   if sim=='': 
-    [E,c,idx,lg,cid,_] = get_variables(t,lincorr=1,mgem=1,exclude_edge=fiducial,exclude_dead=(rdead!=0),match=any(gem),rdead=rdead,spacer=spacer)
+    [E,c,idx,lg,cid,_] = get_variables(t,lincorr=1,mgem=1,exclude_edge=fiducial,exclude_dead=0,match=0,rdead=rdead,spacer=spacer)
   else: 
     [E,c,idx,lg,cid,_] = get_variables_sim(t,lincorr=0,exclude_edge=fiducial,exclude_dead=(rdead!=0),match=any(gem),rdead=rdead,spacer=spacer)
 

@@ -1,27 +1,34 @@
 from params import *
 from moller import *
 from esepp import *
-  
-load_positions()
-load_hycal_trgeff()
-edge = get_regions('inner')+get_regions('outer')
-ztarget, zhycal = 89., 5636.
-dead_radius = [cell_size[i][1] for i in range(2)]
-dead_modules = [775,900,1835,1891]
+from energy_loss import energy_loss
+from mdict import *
 
+edge = get_regions('inner')+get_regions('outer')
+
+current = Mdict()
+
+# utils #################################################################################
 
 def get_coordinate(t,i):
   chycal = [t.xhycal[i],t.yhycal[i],t.zhycal[i]]
-  cgem = [[] if t.zgem[2*i+j]<0 else [t.xgem[2*i+j],t.ygem[2*i+j],t.zgem[2*i+j]] for j in range(2)]
+  cgem = [[] if t.zgem[2*i+j]<=0 else [t.xgem[2*i+j],t.ygem[2*i+j],t.zgem[2*i+j]] for j in range(2)]
   return [chycal]+cgem
 
 def proj(c,z): 
   if c[2]==z: return c
   return [x*z/c[2] for x in c]
 
-def ftheta(c,z_origin=0.): return atan2((c[0]**2+c[1]**2)**0.5,c[2]-z_origin)
-
-def fphi(c): return atan2(c[1],c[0]) 
+def clear_current():
+  current['iev'] = 0
+  current['idx'] = []
+  current['cid'] = []
+  current['c0'] = []
+  current['cm'] = []
+  current['E0'] = []
+  current['E1'] = []
+  current['E2'] = []
+  current['lg'] = []
 
 def print_event(t=None,c=None,E=None,iev=None,typ='ep'):
   if t is None:
@@ -34,22 +41,22 @@ def print_event(t=None,c=None,E=None,iev=None,typ='ep'):
       print 'angle =',
       print 'E_theo' 
   
-#### hycal ####
+  
+#### hycal ##############################################################################
 
 def fiducial_cut(cid,c,exclude_edge,exclude_dead,rdead=1.):
   if c==[]: return True
   [x,y,z] = proj(c,zhycal)
-  if exclude_edge and ((cid in edge) or (abs(x)<2*cell_size[0][0] and abs(y)<2*cell_size[0][1]) or (abs(x)>17*cell_size[0][0]+5*cell_size[1][0]) or (abs(y)>17*cell_size[0][1]+5*cell_size[1][1])): 
+  [x2,y2] = to_hycal_frame([x,y])
+  if exclude_edge and ((cid in edge) or (abs(x2)<2*cell_size[0][0] and abs(y2)<2*cell_size[0][1]) or (abs(x2)>17*cell_size[0][0]+5*cell_size[1][0]) or (abs(y2)>17*cell_size[0][1]+5*cell_size[1][1])): 
     return True
   if exclude_dead:
-    for i in dead_modules:
+    for i,[xdead,ydead] in zip(dead_modules,dead_pos):
       k = int(i<1000)
-      # if i==cid: return True
-      if ((x-module_pos[i][0])**2+(y-module_pos[i][1])**2)**0.5<rdead*dead_radius[k]: 
-        return True
+      if ((x-xdead)**2+(y-ydead)**2)**0.5<rdead*dead_radius[k]: return True
   return False
 
-#### gem ####
+#### gem ################################################################################
 
 def merge_gem(c):
   if c[1]==c[2]==[]: return [c[0],[]],0
@@ -79,6 +86,15 @@ def gem_spacers(x,y,igem=0,width=20.):
 
 def gem_beam_square(x,y):
   return (abs(x)<50 and abs(y)<50)
+
+def gem_fiducial(c,rdead=1.):
+  [x,y,z] = proj(c,zhycal)
+  for i,[xdead,ydead] in zip(dead_modules,dead_pos):
+    k = int(i<1000)
+    if ((x-xdead)**2+(y-ydead)**2)**0.5<rdead*dead_radius[k]: return True
+  for [xdead,ydead] in dead_pos_comp:
+    if ((x-xdead)**2+(y-ydead)**2)**0.5<15.: return True
+  return False
   
 
 #### data ####
@@ -86,14 +102,16 @@ def gem_beam_square(x,y):
 def correct_linearity(E,cid):
   return E/(1+linfactor[cid]*(E-ecalib[cid])/1000.)
 
-def get_variables(t,lincorr=0,mgem=1,match=0,exclude_edge=0,exclude_dead=0,rdead=1.,spacer=0):
+def get_variables(t,lincorr=0,mgem=1,match=0,exclude_edge=0,exclude_dead=0,rdead=1.,spacer=0,eloss=0):
+  #clear_current()
   E,c,idx,lg,cid = [],[],[],[],[]
   for i in range(t.n_cl):
     if t.nh[i]<2: continue
     # coordinate
     ctmp = get_coordinate(t,i)
+    #current.c0.append(get_coordinate(t,i))
     # hycal
-    if fiducial_cut(t.id[i],[ctmp[0][0]-hycal_center[0],ctmp[0][1]-hycal_center[1],ctmp[0][2]],exclude_edge,exclude_dead,rdead): continue
+    if fiducial_cut(t.id[i],ctmp[0],exclude_edge,exclude_dead,rdead): continue
     # gem
     if mgem: ctmp,igem = merge_gem(ctmp)
     if match and ((len(ctmp)==2 and ctmp[1]==[]) or (len(ctmp)==3 and ctmp[1]==ctmp[2]==[])): continue
@@ -102,6 +120,9 @@ def get_variables(t,lincorr=0,mgem=1,match=0,exclude_edge=0,exclude_dead=0,rdead
     if lincorr: Etmp = correct_linearity(t.E[i],t.id[i])
     else: Etmp = t.E[i]
     if Etmp<0: continue
+    # ionization energy loss
+    if eloss and ctmp[1]!=[]: Etmp += energy_loss(ftheta(ctmp[1]),Etmp)
+    elif eloss: Etmp += energy_loss(ftheta(ctmp[0]),Etmp)
     E.append(Etmp)
     c.append(ctmp)
     idx.append(i)
@@ -200,9 +221,9 @@ def is_ee2(theta=None,E=None,Ebeam=None,c=None,E_theo=None,elas=None,elasc=None,
     zvertex = ((m_e+Ebeam)*rj[0]*rj[1]/2./m_e)**0.5-zhycal
   if abs(dphi)>phicut[gem[0]] or abs(zvertex)>zcut[gem[0]] or abs(dE)>dEcut or any(th<thetacut[gem[0]]*degrad for th in theta): return [0,0,0]
   # single arm
-  if theta_flag: theta = [ftheta(x[gem[1]]) for x in c]
+  if theta_flag: theta = [ftheta(x[gem[1]]) if x[gem[1]]!=[] else -1 for x in c]
   if elas is None:
-    if etheo_flag: E_theo = [moller_energy(th,Ebeam) for th in theta]
+    if etheo_flag: E_theo = [moller_energy(th,Ebeam) if th!=-1 else -1 for th in theta]
     elas = [e/e_theo/1000.-1 for e,e_theo in zip(E,E_theo)]
-  if elasc is None: elasc = [sigma[1]*[0.024,0.062][i]/e_theo**0.5 for i,e_theo in zip(lg,E_theo)]
-  return [1]+[abs(x)<y or th>thetacut[gem[1]]*degrad for x,y,th in zip(elas,elasc,theta)]
+  if elasc is None: elasc = [sigma[1]*[0.024,0.062][i]/e_theo**0.5 if e_theo!=-1 else 0 for i,e_theo in zip(lg,E_theo)]
+  return [1]+[abs(x)<y or th>thetacut[gem[1]]*degrad  if th!=-1 else False for x,y,th in zip(elas,elasc,theta)]

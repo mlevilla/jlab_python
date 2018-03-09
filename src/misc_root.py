@@ -3,7 +3,7 @@ from misc import *
 time_start = time.time()
 
 import ROOT
-from ROOT import gStyle, gROOT, TGraph, TGraphErrors, TH1F, TH2F, TTree, TFile, TF1, TCanvas, TPaveText, TSpectrum, TLorentzVector, TH1D, TH2D, TChain, TH1, TH2
+from ROOT import gStyle, gROOT, TGraph, TGraphErrors, TH1F, TH2F, TTree, TFile, TF1, TCanvas, TPaveText, TSpectrum, TLorentzVector, TH1D, TH2D, TH3D, TChain, TH1, TH2
 from array import array
 
 gStyle.SetOptStat(0)
@@ -214,6 +214,7 @@ def custom_obj(h,**args):
     if 'offset' in args: x.SetTitleOffset(args['offset'][i])
   if 'xrg' in args: xa.SetRangeUser(args['xrg'][0],args['xrg'][1])
   if 'yrg' in args: ya.SetRangeUser(args['yrg'][0],args['yrg'][1])
+  if 'zrg' in args: h.GetZaxis().SetRangeUser(args['zrg'][0],args['zrg'][1])
  
 
 def custom(h,first=True,c=None,log=0,grid=False,legend=[],insert=[],margin=[0.13,0.13],opt='',**objargs):
@@ -287,6 +288,7 @@ def fit_gaus(h,threshold=2.,sigma=3.,xrg=None):
   integ = h.Integral()
   if integ<=threshold: return [mean,sig,0.,0.,0]
   if xrg!=None: h.GetXaxis().SetRangeUser(xrg[0],xrg[1])
+  else: h.GetXaxis().UnZoom()
   return [f.GetParameter(i) for i in range(1,3)]+[f.GetParError(i) for i in range(1,3)]+[1]
 
 def fit_2gaus(h,threshold=2.,xrg=None):
@@ -304,8 +306,20 @@ def fit_2gaus(h,threshold=2.,xrg=None):
   if xrg is None: h.Fit(ffit,'q')
   else: h.Fit(ffit,'rq','',xrg[0],xrg[1])
   return [ffit.GetParameter(1),ffit.GetParameter(2),ffit.GetParError(1),ffit.GetParError(2),1]
-  
-  
+
+def fit_cball(h,xrg=None):
+  if xrg!=None: h.GetXaxis().SetRangeUser(xrg[0],xrg[1])
+  peak = h.GetBinCenter(h.GetMaximumBin())
+  std = h.GetStdDev()
+  integ = h.Integral()
+  height = h.GetMaximum()
+  ffit = TF1('cball','(x-[1])/[2]>-[3] ? [0]*exp(-(x-[1])^2/2/[2]^2) : [0]*([4]/fabs([3]))^[4]*exp(-[3]^2/2)*([4]/fabs([3])-fabs([3])-(x-[1])^[2])^[4]',h.GetXaxis().GetXmin(),h.GetXaxis().GetXmax())
+  ffit.SetParameters(height,peak,std,1,5)
+  if xrg is None: h.Fit(ffit,'q')
+  else: h.Fit(ffit,'rq','',xrg[0],xrg[1])
+  return [ffit.GetParameter(i) for i in range(5)]+[ffit.GetParError(i) for i in range(5)]
+
+
 def fit_list(f,x,y,dx=[],dy=[],xrg=[],sel=[],start=None):
   if not sel: g,g2 = tgraph(x,y,dx,dy),TGraph()
   else: 
@@ -343,19 +357,22 @@ def writelisto(l,f=None,folder=[],**custom_arg):
       writelisto(x,u,folder[1:],**custom_arg)
 
 
-def listofhisto(name,suffix,nbinx,xmin=None,xmax=None,nbiny=None,ymin=None,ymax=None,xbin=None,ybin=None,title='',fout=None):
+def listofhisto(name,suffix,nbinx,xmin=None,xmax=None,nbiny=None,ymin=None,ymax=None,nbinz=None,zmin=None,zmax=None,xbin=None,ybin=None,zbin=None,title='',fout=None):
   if fout!=None: fout.cd()
   if len(suffix)==0:
     if nbiny is None:
       if xbin is None: h = TH1D(name,title,nbinx,xmin,xmax)
       else: h = TH1D(name,title,nbinx,array('d',xbin))
-    else:
+    elif nbinz is None:
       if xbin is None: h = TH2D(name,title,nbinx,xmin,xmax,nbiny,ymin,ymax)
       else: h = TH2D(name,title,nbinx,xbin,nbiny,ybin)
       h.SetOption('colz')
+    else:
+      if xbin is None: h = TH3D(name,title,nbinx,xmin,xmax,nbiny,ymin,ymax,nbinz,zmin,zmax)
+      else: h = TH3D(name,title,nbinx,xbin,nbiny,ybin,nbinz,zbin)
     return h
   else:
-    if not isinstance(suffix[0],list): suffix = [suffix]
+    if isinstance(suffix,dict) or not (isinstance(suffix[0],list) or isinstance(suffix[0],dict)): suffix = [suffix]
     suf = suffix[0]
     if not isinstance(nbinx,list): nbinx = [nbinx for y in suf]
     if not isinstance(xmin,list): xmin = [xmin for y in suf]
@@ -365,8 +382,15 @@ def listofhisto(name,suffix,nbinx,xmin=None,xmax=None,nbiny=None,ymin=None,ymax=
     if not isinstance(ymin,list): ymin = [ymin for y in suf]
     if not isinstance(ymax,list): ymax = [ymax for y in suf]
     if ybin is None or not isinstance(ybin[0],list): ybin = [ybin for y in suf]
+    if not isinstance(nbinz,list): nbinz = [nbinz for y in suf]
+    if not isinstance(zmin,list): zmin = [zmin for y in suf]
+    if not isinstance(zmax,list): zmax = [zmax for y in suf]
+    if zbin is None or not isinstance(zbin[0],list): zbin = [zbin for y in suf]
     if not isinstance(title,list): title = [title for y in suf]
-    return [listofhisto(name+'_'+str(suf[i]),suffix[1:],nbinx[i],xmin[i],xmax[i],nbiny[i],ymin[i],ymax[i],xbin[i],ybin[i],title[i]) for i in range(len(suf))]
+    if isinstance(suf,list):
+      return [listofhisto(name+'_'+str(suf[i]),suffix[1:],nbinx[i],xmin[i],xmax[i],nbiny[i],ymin[i],ymax[i],nbinz[i],zmin[i],zmax[i],xbin[i],ybin[i],zbin[i],title[i]) for i in range(len(suf))]
+    else:
+      return {k:listofhisto(name+'_'+str(v),suffix[1:],nbinx[i],xmin[i],xmax[i],nbiny[i],ymin[i],ymax[i],nbinz[i],zmin[i],zmax[i],xbin[i],ybin[i],zbin[i],title[i]) for i,(k,v) in enumerate(suf.items())}
 
 
 def fill_pulls(p,h,hi,const=True,factor=[1.,1.],w=False,xrg=[]):
@@ -401,9 +425,9 @@ def getlisto(f):
 def get_binning(h):
   return [h.GetXaxis().GetBinLowEdge(i) for i in range(1,h.GetNbinsX()+2)]
 
-def get_chain(name,filename,n,ext='.root',start=0):
+def get_chain(name,filename,l,ext='.root'):
   c = TChain(name)
-  for i in range(start,n+start): c.AddFile(filename+'_'+str(i)+ext)
+  for x in l: c.AddFile(filename+'_'+str(x)+ext)
   return c
 
 def divide_binwidth(h):
@@ -423,3 +447,19 @@ def hintegral(h,a,b):
   ia = max(i for i,x in enumerate(binning) if a>=x)
   ib = min(i for i,x in enumerate(binning) if b<=x)
   return sum(h[i+1] for i in range(ia,ib))
+
+def stvar(var,x='xhycal',y='yhycal',z='zhycal',E='E',Ebeam='2.142',sim=0,gem=0):
+  stmp = 0.938272046
+  stme = 0.00051099893
+  if sim:
+    E = 'HC.P'
+    if gem: x,y,z = 'GEM.X','GEM.Y','(GEM.Z+2911)'
+    else: x,y,z = 'HC.X','HC.Y','(HC.Z+2911)'
+  else:
+    E = 'E'
+    if gem: x,y,z = 'xgem','ygem','zgem'
+    else: x,y,z = 'xhycal','yhycal','zhycal'
+  if var=='theta':
+    return 'atan2(sqrt({0}^2+{1}^2),{2})*180/pi'
+  elif var=='Q2':
+    return 

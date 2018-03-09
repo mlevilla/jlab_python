@@ -2,7 +2,7 @@
 from params import *
 
 largs = [('n','','several','suffix'),
-         ('i',workf,'','input_dir'),
+         ('i',workf+'/simyields','','input_dir'),
          ('int',[0.8,2.],'','integration range'),
          ('nf',1,'','number_of_sim_files'),
          ('ebeam',2,'','beam_energy_for_simulation'),
@@ -75,8 +75,9 @@ hrq22 = listofhisto('hrq22',enames[1:],nbin,xbin=q2bin,title=';Q^{2} (GeV^{2});#
 # prth = listofhisto('prth',[enames[1:],range(nbin)],100,-10,10,title=';pulls;')
   
 # luminosity = [3.3693e8,7.2168e7,7.2168e7,7.2168e7]
+luminosity = readfile(indir+'/simyields'+suffix[0]+'.info',[float,float],end=1)
 luminosity.extend([luminosity[-1],luminosity[-1]])
-luminosity = [x*1e6 for x in luminosity]
+#luminosity = [x*1e6 for x in luminosity]
 
 # input files
 fs = [TFile(indir+'/simyields'+suffix[0]+'_'+str(i)+'.root') if nf!=1 else TFile(indir+'/simyields'+suffix[0]+'.root') for i in range(nf)]

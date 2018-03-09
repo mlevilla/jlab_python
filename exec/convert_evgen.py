@@ -1,11 +1,18 @@
 #!/usr/bin/env python
-from misc import *
+from params import *
 from struct import *
 
 types = {'c':str,'b':int,'?':bool,'h':int,'i':int,'l':int,'q':int,'f':float,'d':float,'s':str,'p':str}
 
-fformat = sys.argv[1]
-infile = sys.argv[2]
+largs = [('f','','','format'),
+         ('i','','','input file'),
+         ('o','','','output file'),
+         ('p',0,'several','float precision'),
+         ('b',False,'','convert to binary')]
+         
+aparser = ArgParser(largs)
+[fformat,infile,outfile,precision,binary] = aparser.argl
+
 
 count = ''
 fformat2 = []
@@ -16,9 +23,9 @@ for x in fformat:
     else: fformat2.extend([types[x]]*int(count))
     count = ''
 
-if infile[-1]!='2':
+if binary:
   l = readfile(infile,fformat2)
-  fout = open(infile+'2','wb')
+  fout = open(outfile,'wb')
   for x in l:
     y = pack(fformat,*x)
     fout.write(y)
@@ -26,9 +33,9 @@ if infile[-1]!='2':
 
 else:
   size = calcsize(fformat)
-  f = open(infile)
+  f = open(infile,'rb')
   l = []
   while f.read(size): 
     f.seek(-size,1)
     l.append(list(unpack(fformat,f.read(size))))
-  writelist(infile[:-1],l,ljust=10)
+  writelist(outfile,l,ljust=min(10,max(precision)+2),ro=precision)

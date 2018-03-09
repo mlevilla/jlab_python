@@ -217,7 +217,7 @@ if final:
   if write_gain!='':
     lms = [get_lms_gains(889,1),get_lms_gains(889,2),get_lms_gains(889,3)]
     lms = [[lms[i][j] for i in range(3)] for j in range(1728)]
-    if metjod=='fsnake':
+    if method=='fsnake':
       lf = [[x,'%.4f'%(gains0[i]/y[3])]+z+[0.0,'%.4f'%b] if y[3]!=0 else [x,'%.4f'%(0.25)]+z+[0.0,'%.4f'%b] for i,(x,y,b,z) in enumerate(zip(mlist,lmean,lalpha,lms))]
     else:
       lf = [[x,'%.4f'%(gains0[i]/y[3]),'%.4f'%b]+z if y[3]!=0 else [x,'%.4f'%(0.25),'%.4f'%b]+z for i,(x,y,b,z) in enumerate(zip(mlist,lmean,lalpha,lms))]

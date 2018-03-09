@@ -125,14 +125,15 @@ class hcviewer:
     self.h[ih].SetEntries(self.h[ih].GetEntries()-1)
 
   def binning(self,mid):
-    if isinstance(mid,str): mid = 1000*(mid[0]=='W')+int(mid[1:])-1
+    if isinstance(mid,str): mid = 1000*(mid[0]=='W')+int(mid[1:])
+    mid -= 1
     if mid>=1000: return (0,(mid-1000)%34,33-(mid-1000)/34,(mid-1000)%34+1+(34-(mid-1000)/34)*36)
     elif mid>719 and mid%30>5: return (1,mid%30-6,29-mid/30,mid%30-6+1+(30-mid/30)*26)
     elif mid<180 and mid%30<24: return (2,mid%30,5-mid/30,mid%30+1+(6-mid/30)*26)
     elif mid%30<6: return (3,mid%30,23-mid/30+6,mid%30+1+(24-mid/30+6)*8)
     elif mid%30>23: return (4,mid%30-24,23-mid/30,mid%30-24+1+(24-mid/30)*8)
     else:
-      print 'hit outside of hycal',index,mid
+      print 'hit outside of hycal',mid
       return (0,0,0,0)
 
   def position(self,x,y):
@@ -147,13 +148,13 @@ class hcviewer:
     elif x>trans[0] and y>-trans[1]:
       return (4,(-trans[0]+x)/cell_size[1][0],(trans[1]+y)/cell_size[1][1])
     else:
-      print 'point is nowher on hycal'
+      print 'point is nowhere on hycal'
       return (0,0,0)
 
-  def addcluster(self,l,li,i,cl=None):
+  def addcluster(self,li,i,cl=None):
     j = [0]*5
     for k in range(5): self.g_hits[i][k].Set(len(l))
-    for x,y in zip(l,li):
+    for y in li:
       ih,xbin,ybin,ibin = self.binning(y)
       self.g_hits[i][ih].SetPoint(j[ih],xbin+0.5,ybin+0.5)
       j[ih]+=1
@@ -166,11 +167,16 @@ class hcviewer:
       ih,x,y = self.position(cl[0],cl[1])
       self.g_cls[i][ih].SetPoint(0,x,y)
 
-  def fill(self,l,li=[range(1728)],reset=False,cl=None):
+  def fill(self,l,li=None,reset=False,cl=None):
     if reset: self.reset()
-    for i,(x,y) in enumerate(zip(l,li)):
-      if i<3 and cl!=None and i<len(cl): self.addcluster(x,y,i,cl[i])
-      elif i<3 and cl!=None: self.addcluster(x,y,i)
+    if not li: li = module_names.keys()
+    if not isinstance(l,list): l,li = [l],[li]
+    if not isinstance(l[0],list): l,li = [l],[li]
+    if cl!=None:
+      for i,y in enumerate(li):
+        if i<3 and i<len(cl): self.addcluster(y,i,cl[i])
+        elif i<3: self.addcluster(y,i)
+    for x,y in zip(l,li):
       for a,b in zip(x,y): self[b] = a
     for x in self.p: 
       if x!=None: x.Modified()

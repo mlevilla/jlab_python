@@ -3,7 +3,7 @@ from params import *
 
 largs = [('n','','several','suffix'),
          ('r',[-1,-1],'','list_of_run'),
-         ('i',workf,'','input_dir'),
+         ('i',workf+'/yields','','input_dir'),
          ('int',[0.8,2.],'','integration range'),
          ('spacer',False,'','spacer_efficiency')]
 
@@ -43,17 +43,17 @@ periods = get_bg_runs(lr[0],lr[1])
 hbarth = listofhisto('hbarth',['ep','ee1','ee2','ee3'],nbin,xbin=thbin,title=';#theta (deg);#theta (deg)')
 hbarq2 = listofhisto('hbarq2',[],nbin,xbin=q2bin,title=';Q^{2} (GeV^{2});Q^{2} (GeV^{2})')
 # selection histograms
-helas1 = listofhisto('helas1',[['prod','empty'],['ep','ee1','ee2','ee3'],range(2)],1000,-1,1,title=';E/E_{theo}-1;')
-helas2 = listofhisto('helas2',[['prod','empty'],['ee2','ee3'],range(5)],1000,-1,1,title=';(#sum E)/E_{beam}-1;')
-hdphi = listofhisto('hdphi',[['prod','empty'],['ee2','ee3'],range(5)],1000,-30,30,title=';#Delta#phi (deg);')
-hzvertex = listofhisto('hz',[['prod','empty'],['ee2','ee3'],range(5)],1000,-1000,1000,title=';z_{vertex} (mm);')
-h2cut1 = listofhisto('h2cut1',[['prod','empty'],['ep','ee1'],range(2)],200,0.,10.,150,0.,max_energy,title=';#theta (deg);E (MeV)')
-h2cut2 = listofhisto('h2cut2',[['prod','empty'],['ee2','ee3'],range(5)],200,0.,10.,150,0.,max_energy,title=';#theta (deg);E (MeV)')
-hxy = listofhisto('hxy',[['prod','empty'],['ep','ee1','ee2','ee3'],['hycal','gem']],1200,-600,600,1200,-600,600,title=';x (mm);y (mm)')
+helas1 = listofhisto('helas1',[['prod','empty','sub'],['ep','ee1','ee2','ee3'],range(2)],1000,-1,1,title=';E/E_{theo}-1;')
+helas2 = listofhisto('helas2',[['prod','empty','sub'],['ee2','ee3'],range(5)],1000,-1,1,title=';(#sum E)/E_{beam}-1;')
+hdphi = listofhisto('hdphi',[['prod','empty','sub'],['ee2','ee3'],range(5)],1000,-30,30,title=';#Delta#phi (deg);')
+hzvertex = listofhisto('hz',[['prod','empty','sub'],['ee2','ee3'],range(5)],1000,-1000,1000,title=';z_{vertex} (mm);')
+h2cut1 = listofhisto('h2cut1',[['prod','empty','sub'],['ep','ee1'],range(2)],200,0.,10.,150,0.,max_energy,title=';#theta (deg);E (MeV)')
+h2cut2 = listofhisto('h2cut2',[['prod','empty','sub'],['ee2','ee3'],range(5)],200,0.,10.,150,0.,max_energy,title=';#theta (deg);E (MeV)')
+hxy = listofhisto('hxy',[['prod','empty','sub'],['ep','ee1','ee2','ee3'],['hycal','gem']],1200,-600,600,1200,-600,600,title=';x (mm);y (mm)')
 hselection = [helas1,helas2,hdphi,hzvertex,h2cut1,h2cut2,hxy]
 
 # kinematic histograms
-names = ['prod','empty','diff','ratio','cross','eff']
+names = ['prod','empty','sub','ratio','cross','eff']
 snames = ['cross','eff']
 ynames = ['N','n','N-c#cdot n','n/(N-c#cdot n)','#frac{d#sigma}{d#Omega} (b/sr)','#frac{d#sigma}{d#Omega} (b/sr)']
 enames = ['ep','ee1','ee2','ee3']
@@ -80,17 +80,20 @@ prth = listofhisto('prth',[enames[1:]],100,-10,10,title=';pulls;')
 lcharge = [[sum([live_charge[run]*1e4 for run in x]) for x in y] for y in periods]
 ratio_lcharge = [x[0]/x[1] for x in lcharge]
 sum_lcharge = sum(x[0] for x in lcharge)
+ratio_sum_lcharge = sum(x[0] for x in lcharge)/sum(x[1] for x in lcharge)
 thick = [[[sum([live_charge[run]*1e4*y[run] for run in x])/lcharge[i][j] if lcharge[i][j]!=0 else 0. for y in [thickness,dthickness]] for j,x in enumerate(z)] for i,z in enumerate(periods)]
 average_thickness = sum(x[0][0] for x in thick)/len(thick)
 
 # gem efficiency
-st_energy = '1GeV' if Ebeam<2. else '2GeV'
-st_spacer = 'remove' if spacer else 'with'
-[gem_eff,gem_deff] = readfile(workf+'/gem_efficiencies/{0}_ep_{1}_spacer.txt'.format(st_energy,st_spacer),[float,float],cols=[4,5],tr=True)
-hth_gem_eff = listofhisto('hth_gem_eff',[],nbin,xbin=thbin,title=';#theta (deg); efficiency')
-for i in range(nbin):
-  hth_gem_eff[i+1] = gem_eff[i]
-  hth_gem_eff.SetBinError(i+1,gem_deff[i])
+# st_energy = '1GeV' if Ebeam<2. else '2GeV'
+# st_spacer = 'remove' if spacer else 'with'
+# [gem_eff,gem_deff] = readfile(workf+'/gem_efficiencies/{0}_ep_{1}_spacer.txt'.format(st_energy,st_spacer),[float,float],cols=[4,5],tr=True)
+# hth_gem_eff = listofhisto('hth_gem_eff',[],nbin,xbin=thbin,title=';#theta (deg); efficiency')
+# for i in range(nbin):
+#   hth_gem_eff[i+1] = gem_eff[i]
+#   hth_gem_eff.SetBinError(i+1,gem_deff[i])
+fgem = TFile(workf+'/gem_efficiencies/gem_efficiency_'+['1','2'][int(Ebeam>=2)]+'GeV_weizhi.root')
+hth_gem_eff = [fgem.hgem_eff_ep,fgem.hgem_eff_ee,fgem.hgem_eff_ee,fgem.hgem_eff_ee]
 
 # input files
 fs = [[[TFile(indir+'/yields_'+str(run)+suffix[0]+'.root') for run in x] for x in y] for y in periods]
@@ -120,6 +123,11 @@ for i in range(2):
             if 'hxy' in h3.GetName(): h3.Add(u2.Get(name_temp))
             else: h3.Add(u.Get(name_temp))
 
+for h1 in hselection:
+  for i in range(len(h1[0])):
+    for j in range(len(h1[0][i])):
+      h1[2][i][j].Add(h1[0][i][j],h1[1][i][j],1.,-ratio_sum_lcharge)
+
 # yields
 for i in range(2):
   for j in range(len(periods)):
@@ -137,7 +145,7 @@ for i in range(4):
     hth_yield[3][i][j].Divide(hth_yield[1][i][j],hth_yield[2][i][j])
     hth_yield[4][i][j].Add(hth_yield[2][i][j])
     hth_yield[4][i][j].Scale(1./lcharge[j][0]*1e28/thick[j][0][0]/6.242e9)
-    hth_yield[5][i][j].Divide(hth_yield[4][i][j],hth_gem_eff)
+    hth_yield[5][i][j].Divide(hth_yield[4][i][j],hth_gem_eff[i])
     for k in range(nbin):
       hth_yield[4][i][j][k+1] = hth_yield[4][i][j][k+1]/2./pi/(cos(thbin[k]*degrad)-cos(thbin[k+1]*degrad))
       hth_yield[4][i][j].SetBinError(k+1,hth_yield[4][i][j].GetBinError(k+1)/2./pi/(cos(thbin[k]*degrad)-cos(thbin[k+1]*degrad)))
@@ -174,7 +182,7 @@ for i in range(4):
     hth[4][i][k+1] = hth[4][i][k+1]/2./pi/(cos(thbin[k]*degrad)-cos(thbin[k+1]*degrad))
     hth[4][i].SetBinError(k+1,hth[4][i].GetBinError(k+1)/2./pi/(cos(thbin[k]*degrad)-cos(thbin[k+1]*degrad)))
   # efficiency correction
-  hth[5][i].Divide(hth[4][i],hth_gem_eff)
+  hth[5][i].Divide(hth[4][i],hth_gem_eff[i])
   # integrated cross section
   for j in range(2):
     deff_temp = 0.
@@ -245,7 +253,7 @@ grq2exp = [[[tgraph(hbarq2,h[j][i],name='grq2'+['','2'][k]+'exp_'+['','eff_'][j]
 # remove points with low stats / weird behaviour
 for gth,gq2 in zip(unnest(grthexp[0]),unnest(grq2exp[0])):
   for i in range(gth.GetN()-1):
-    if abs(gth.GetY()[i+1]-gth.GetY()[i])/(gth.GetX()[i+1]-gth.GetX()[i])>2:
+    if abs(gth.GetY()[i+1]-gth.GetY()[i])/(gth.GetX()[i+1]-gth.GetX()[i])>3:
       gth.SetPoint(i+1,gth.GetX()[i+1],0.)
       gth.SetPointError(i+1,gth.GetEX()[i+1],0.)
       gq2.SetPoint(i+1,gq2.GetX()[i+1],0.)
@@ -268,5 +276,6 @@ writelisto([hq2,hrq2,gq2exp,grq2exp,gq2theo,grq2theo],fout,['q2'],yrg=[0,1.1])
 writelisto(gq2comp,fout,['q2'],yrg=[0.5,2.])
 writelisto([pth,prth],fout,['pulls'])
   
+fgem.Close()
 fout.Close()
 sys.exit()

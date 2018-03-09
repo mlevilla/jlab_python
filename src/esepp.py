@@ -4,7 +4,9 @@ from misc_root import *
 # from scipy.interpolate import interp1d
 
 m_e = 0.51099893e-3
+m_mu = 0.1056583745
 m_p = 938.272046e-3
+m_n = 939.56563e-3
 mu_p = 2.79284736
 alpha = 1/137.036
 gb = 389.379338e-6
@@ -77,7 +79,7 @@ def born(theta=None,Ei=1.1,Ef=None,Q2=None,unit='barn',ml=m_e,mn=m_p,flag=2):
     pi = (Ei**2-ml**2)**0.5
     pf = (Ef**2-ml**2)**0.5
     Q2 = pf**2*sin(theta)**2+(pi-pf*cos(theta))**2-(Ei-Ef)**2
-  tau = -Q2/(4*mn**2)
+  tau = Q2/(4*mn**2)
   eps = 1/(1 - 2*(1 + tau)*(Q2 + 2*ml**2)/(4*Ei*Ef + Q2))
   return mott(Ei=Ei,Ef=Ef,Q2=Q2,ml=ml,mn=mn,unit=unit)*(eps*GE(Q2,flag)**2+tau*GM(Q2,flag)**2)/(eps*(1+tau))
 
@@ -101,7 +103,8 @@ class EpEvent:
   def _get_Ef(self): return self.vlf.E()
   def _get_Ep(self): return self.vpf.E()
   def Q2(self): return -(self.vli-self.vlf).M2()
-  def tau(self): return -self.Q2()/(4*self.mn**2)
+  def W(self): return (self.vpi+self.vli-self.vlf).M()
+  def tau(self): return self.Q2()/(4*self.mn**2)
   def epsilon(self): return 1/(1 - 2*(1 + self.tau())*(self.Q2() + 2*self.ml**2)/(4*self.Ei*self.Ef + self.Q2()))
 
   Ei  = property(_get_Ei)

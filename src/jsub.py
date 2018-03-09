@@ -7,6 +7,8 @@ def jsub(**args):
     if x not in args:
       sys.stderr.write('necessary argument "'+x+'" not found\n')
       return
+  args['jobname'] = args['jobname'][:50]
+  print os.environ['JOBS']+'/'+args['jobname']+'.txt'
   f = open(os.environ['JOBS']+'/'+args['jobname']+'.txt','w')
   for x,y in args.items():
     if isinstance(y,str): f.write(x.upper()+': '+y+'\n')
